@@ -3,11 +3,16 @@ import discord
 from discord.ext import commands
 from config import token
 import sql
+from datasql import DB_Manager
+
+
 
 intents = discord.Intents.default()
 intents.message_content = True
 
+db_manager = DB_Manager("ask.db") # DB_Manager sınıfınızı başlatın
 client = commands.Bot(command_prefix='-', intents=intents)
+yardim_talebi_baslatanlar = {}
 
 @client.event
 async def on_ready():
@@ -17,6 +22,7 @@ async def on_ready():
 async def on_message(message):
      if message.author == client.user:
         return
+
     
      #SSS Soru Cevap Kod
      if message.content.lower().startswith("-nasıl alışveriş yapabilirim"):
@@ -39,28 +45,28 @@ async def on_message(message):
 
 
 
-
-
      if message.content.lower().startswith("-destekforum"):
-          await message.channel.send("Lütfen sormak istediğiniz soruyu belirtin.")
+        yardim_talebi_baslatanlar[message.author.id] = True
+        await message.channel.send("Lütfen sorununuzu detaylı bir şekilde yazın.")
+        
 
-          def check(m):
-               return m.author == message.author and m.channel == message.channel
+        try:
+            def check(m):
+                return m.author.id == message.author.id and m.channel == message.channel
+            user_question_message = await client.wait_for('message', check=check, timeout=60)
+            user_question = user_question_message.content
+            username = str(message.author) 
+            user_id = str(message.author.id)
 
-          try:
 
-               user_question_message = await client.wait_for('message', check=check, timeout=60.0)
-               user_question = user_question_message.content
-               username = str(message.author) 
-               sql.insert_question(username, user_question)
+            db_manager.add_question(user_id, username, user_question)
+            await message.channel.send(f"Sorunuz başarıyla kaydedildi, **{username}**! en kısa sürede yetkili biri size dönüş sağlayacaktır.")
 
-               await message.channel.send(f"Sorunuz başarıyla kaydedildi, **{username}**! en kısa sürede yetkili biri size dönüş sağlayacaktır.")
+        except asyncio.TimeoutError:
+            await message.channel.send("İşlem zaman aşımına uğradı. Lütfen daha sonra tekrar deneyin.")
+    
 
-          except asyncio.TimeoutError:
-               await message.channel.send("İşlem zaman aşımına uğradı. Lütfen daha sonra tekrar deneyin.")
-     
-
-     await client.process_commands(message)
+        await client.process_commands(message)
 
 
 client.run(token)
